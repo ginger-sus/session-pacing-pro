@@ -1,0 +1,50 @@
+name: iOS Build (Simulator Debug)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install deps & build web
+        run: |
+          npm ci || npm i
+          npm run build
+
+      - name: Install Capacitor iOS
+        run: |
+          npm i -D @capacitor/cli @capacitor/ios
+          npx cap add ios || true
+          npx cap copy
+
+      - name: Install CocoaPods
+        working-directory: ios
+        run: |
+          if [ -f Podfile ]; then
+            pod install
+          fi
+
+      - name: Build with xcodebuild (Simulator)
+        working-directory: ios
+        run: |
+          if [ -d "App.xcworkspace" ]; then
+            xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -derivedDataPath build
+          else
+            xcodebuild -project App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -derivedDataPath build
+          fi
+
+      - name: Upload Derived Data (zip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-derived-data
+          path: ios/build/**
